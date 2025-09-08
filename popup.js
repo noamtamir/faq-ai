@@ -10,6 +10,18 @@ function setupUI() {
     const submitBtn = document.getElementById('submit');
     const answerBox = document.getElementById('answer');
 
+    function buildContextSequential(sections, maxChars = 12000) {
+        const picked = [];
+        let used = 0;
+        for (const s of sections) {
+            const block = `### ${s.heading || 'Section'}\n\n${s.text}\n\n`;
+            if (used + block.length > maxChars && picked.length) break;
+            picked.push(block);
+            used += block.length;
+        }
+        return picked.join('\n---\n');
+    }
+
     async function onSubmit() {
         const question = (questionInput?.value || '').trim();
         answerBox.innerHTML = '';
@@ -26,12 +38,12 @@ function setupUI() {
         }
 
         try {
-            const articles = await window.Page.getArticleTextsFromActiveTab();
-            if (!articles.length) { answerBox.textContent = 'No <article> content found on page.'; return; }
+            const sections = await window.Page.getSectionsFromActiveTab();
+            if (!sections.length) { answerBox.textContent = 'No readable content found on page.'; return; }
 
-            const context = articles.map((t, i) => `### Article ${i + 1}\n\n${t}`).join('\n\n---\n\n');
-            const system = 'You are a helpful assistant. Use only the provided articles to answer. If insufficient information exists, say so.';
-            const user = `Articles:\n\n${context}\n\n**User question**: ${question}`;
+            const context = buildContextSequential(sections);
+            const system = 'You are a helpful assistant. Use only the provided context to answer. If insufficient information exists, say so.';
+            const user = `Context:\n\n${context}\n\n**User question**: ${question}`;
 
             let acc = '';
             for await (const token of window.LLM.streamGeminiCompletion({ apiKey, system, user })) {
